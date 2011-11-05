@@ -38,24 +38,42 @@ close $ifh;
 
 my $DPageHeight = $pageHeight * 2;
 my $hPageWidth = $pageWidth / 2;
-$cmd = "pstops -q -w$hPageWidth -h$DPageHeight ";
-$cmd .="\"2:0(0,-$pageHeight),0(0,0)\" ";
+$cmd = "pstops -q -w$pageWidth -h$DPageHeight ";
+$cmd .="\"0(0,-$pageHeight),0(0,0),0(-$hPageWidth,-$pageHeight),0(-$hPageWidth,0)\" ";
 $cmd .= "$outputps $finalps";
-print "Executing $cmd\n";
-
-print "Converting $finalps to pdf and back (yeah...)\n";
-system("pstopdf $finalps $outputpdf >/dev/null 2>&1");
-system("pdftops $outputpdf $finalps >/dev/null 2>&1");
-
-my $slop = 20;
-$cmd = "pstops -q -w$pageWidth -h$pageHeight ";
-$cmd .="\"2:0(0,$slop),1(0,-$slop)\" ";
-$cmd .= "$finalps $outputps";
 print "Executing $cmd\n";
 die "pstops failed" if system($cmd);
 
+open my $ifh, $finalps;
+open my $ofh, ">$outputps";
+print "Refiltering postscript to $outputps...\n";
+my $boundingBox;
+for (<$ifh>) {
+  s/^(\%\%DocumentMedia: \w+) \d+ \d+/$1 $hPageWidth $pageHeight/ and print;
+  s/^(\%\%BoundingBox: (\d+ \d+)) \d+ \d+/$1 $hPageWidth $pageHeight/ and 
+    ($boundingBox = $2. " $hPageWidth $pageHeight", print);
+  print $ofh $_;
+}
+close $ofh;
+close $ifh;
+
+exit;
+print "Converting to pdf...\n";
+system("pstopdf $outputps $outputpdf");
+print "Cropping...\n";
+system("pdfcrop --bbox \"$boundingBox\" $outputpdf $outputpdf.crop.pdf");
+print "Converting back to postscript...\n";
+system("pdftops $outputpdf.crop.pdf $outputps");
+
+#my $slop = 50;
+#$cmd = "pstops -q -w$pageWidth -h$pageHeight ";
+#$cmd .="\"2:0(0,$slop),1(0,-$slop)\" ";
+#$cmd .= "$finalps $outputps";
+#print "Executing $cmd\n";
+#die "pstops failed" if system($cmd);
+
 $cmd = "pstops -q -w$pageWidth -h$pageHeight ";
-$cmd .="\"4:0(0,0)+1($hPageWidth,0),2($hPageWidth,0)+3(0,0)\" ";
+$cmd .="\"2:0(0,0)+1($hPageWidth,0)\" ";
 $cmd .= "$outputps $finalps";
 print "Executing $cmd\n";
 die "pstops failed" if system($cmd);
