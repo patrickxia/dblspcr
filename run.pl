@@ -2,6 +2,8 @@
 # doublespaces a two-column pdf
 # req: xpdf (pdftops, pstops, pstopdf)
 # only tested with v0.12.4
+# req: pdfcrop
+# only tested with 1.20
 
 ++$|;
 use strict;
@@ -12,6 +14,7 @@ die "usage: $0 inputfile.pdf" unless $ARGV[0] =~ /(.*?)\.pdf$/;
 my $inputpdf = "$1.pdf";
 my $inputps = "$1.ps";
 my $outputps = "$1-tmp.ps";
+my $tmppdf = "$1-tmp.pdf";
 my $finalps = "$1-dbl.ps";
 my $outputpdf = "$1-dbl.pdf";
 
@@ -39,7 +42,9 @@ close $ifh;
 my $DPageHeight = $pageHeight * 2;
 my $hPageWidth = $pageWidth / 2;
 $cmd = "pstops -q -w$pageWidth -h$DPageHeight ";
-$cmd .="\"0(0,-$pageHeight),0(0,0),0(-$hPageWidth,-$pageHeight),0(-$hPageWidth,0)\" ";
+my $slop = 50;
+my $hWithSlop = -$pageHeight+$slop;
+$cmd .="\"0(0,$hWithSlop),0(0,$slop),0(-$hPageWidth,$hWithSlop),0(-$hPageWidth,$slop)\" ";
 $cmd .= "$outputps $finalps";
 print "Executing $cmd\n";
 die "pstops failed" if system($cmd);
@@ -57,13 +62,13 @@ for (<$ifh>) {
 close $ofh;
 close $ifh;
 
-exit;
 print "Converting to pdf...\n";
-system("pstopdf $outputps $outputpdf");
-print "Cropping...\n";
-system("pdfcrop --bbox \"$boundingBox\" $outputpdf $outputpdf.crop.pdf");
+system("pstopdf $outputps");
+$cmd = "pdfcrop --bbox \"$boundingBox\" $tmppdf $tmppdf.crop.pdf";
+print "Executing $cmd...\n";
+system($cmd);
 print "Converting back to postscript...\n";
-system("pdftops $outputpdf.crop.pdf $outputps");
+system("pdftops -paperw $pageWidth -paperh $pageHeight -nocenter $tmppdf.crop.pdf $outputps");
 
 #my $slop = 50;
 #$cmd = "pstops -q -w$pageWidth -h$pageHeight ";
